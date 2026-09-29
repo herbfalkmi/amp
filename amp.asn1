@@ -63,10 +63,40 @@ DEFINITIONS ::= BEGIN
 -- structural types
 -- ===================================================================
     AMPPDUPayload ::= CHOICE {
-        encryptedPayload                    [0] AMPEncryptedPDUPayload,
-        unencryptedPayload                  [1] UnencryptedAuthorityMessage,
-        certificateChain                    [2] CertificateChain
+		authorityMessagePayloads			[0] AMPAuthorityMessagePayloads, --requests and responses sent by an Authority
+		deviceMessagePayloads				[1] DeviceMessagePayloads,   --requests and responses sent by a Device
+       
     }
+	
+ AMPAuthorityMessagePayload::= SEQUENCE
+ 	{
+	-- At least one of the certificateChain or choice payloads must be present
+	-- If the SEQUENCE is NULL, this is an error
+	certificateChain [0] CertificateChain OPTIONAL,
+	CHOICE
+		{
+			encryptedPayload			[1] 	AMPEncryptedPDU			
+			unencryptedPayload			[2]		CHOICE
+				{			--list payloads that  are to be sent in unencrypted
+				hello                               [0]     IMPLICIT Hello,
+					-- priority 2
+				certificateRevocations              [1]     IMPLICIT CertificateRevocations,
+					-- ACK, priority 3
+				authorityCertificate                [2]    IMPLICIT AuthorityCertificate,
+					-- ACK, Challenge, priority 
+					-- priority 0
+				extendedMessage                     [3]     IMPLICIT			-- probably should just be a ...
+					Extension
+				}
+		} OPTIONAL
+	}
+
+DeviceMessagePayloads::= CHOICE		{
+			encryptedPayload			[0] EncryptedDeviceMessage	--currently there are none defined
+			unencryptedPayload			[1] DeviceMessage,
+			...
+
+			}
 
     AMPEncryptedPDUPayload ::= SEQUENCE {
         -- Payload is encrypted using an AES-GCM 256 AEAD, using no Additional 
@@ -94,7 +124,16 @@ DEFINITIONS ::= BEGIN
         deviceMessage                       [1]     DeviceMessage,
         extendedMessage                     [2]     Extension
     }
-    
+
+CertificateChain = SEQUENCE {
+		-- must have at least one, if SEQUENCE is NULL, this is an error
+		authorityCerticateChain	 [0]  ChainOFCerts OPTIONAL,
+		attributeCerticateChain  [1]  ChainOFCerts OPTIONAL,
+		deviceCertificateChain   [2] ChainOFCerts OPTIONAL,
+		}
+
+ChainOFCerts::= SEQUENCE OF Certificate
+
     -- Note: for the priorities below, the basic reasoning is this:
     --       - priority 0 messages will be retried by the Authority if lost, so if they do
     --         get lost because of communications issues, that's not an issue
